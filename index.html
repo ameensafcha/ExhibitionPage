@@ -1,8 +1,4 @@
-
-<!-- Safcha ultimate player  -->
-
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -32,7 +28,6 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Fullscreen Mode */
   #videoContainer.fullscreen-mode {
     position: fixed !important;
     top: 0 !important;
@@ -49,20 +44,34 @@
     object-fit: contain;
   }
 
-  /* --- LOCK BUTTON ANIMATION --- */
-  #lockBtn {
+  /* --- BUTTONS ANIMATION --- */
+  .top-btn {
     z-index: 100;
-    opacity: 0; /* Default Gayab */
+    opacity: 0; 
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s;
+    transition: opacity 0.3s ease, visibility 0.3s, transform 0.2s;
     transform: scale(0.9);
   }
 
-  /* Jab User Active ho (Tap/Hover) to Lock Button dikhe */
-  #videoContainer.user-active #lockBtn {
+  /* Show buttons when active */
+  #videoContainer.user-active .top-btn {
     opacity: 1;
     visibility: visible;
     transform: scale(1);
+  }
+
+  /* Hide EVERYTHING when locked */
+  #videoContainer.locked .top-btn#uploadBtn,
+  #videoContainer.locked #controls {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* Lock button specific */
+  #videoContainer.locked.user-active #lockBtn {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
   }
 
   /* --- CONTROLS BAR --- */
@@ -73,16 +82,9 @@
     z-index: 50;
   }
 
-  /* Show Controls when Active */
   #videoContainer.user-active #controls {
     opacity: 1;
     transform: translateY(0);
-  }
-
-  /* STRICT: Lock hone par Controls bilkul na dikhe (Sirf Lock btn dikhega) */
-  #videoContainer.locked #controls {
-    opacity: 0 !important;
-    pointer-events: none !important;
   }
 
   /* Progress Bar */
@@ -116,12 +118,19 @@
       id="videoPlayer"
       playsinline
       webkit-playsinline
+      loop
       poster="https://images.unsplash.com/photo-1574267432644-f610c0b5c135?w=1024"
     >
       <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
     </video>
 
-    <button id="lockBtn" class="absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full backdrop-blur-md border border-white/10">
+    <input type="file" id="videoInput" accept="video/*" class="hidden">
+
+    <button id="uploadBtn" class="top-btn absolute top-4 left-4 bg-black/40 text-white p-2 rounded-full backdrop-blur-md border border-white/10 hover:bg-white/20">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+    </button>
+
+    <button id="lockBtn" class="top-btn absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full backdrop-blur-md border border-white/10 hover:bg-white/20">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
     </button>
 
@@ -165,32 +174,71 @@ const muteBtn = document.getElementById('muteBtn');
 const volUpIcon = document.getElementById('volUpIcon');
 const volMuteIcon = document.getElementById('volMuteIcon');
 
+// New Upload Elements
+const uploadBtn = document.getElementById('uploadBtn');
+const videoInput = document.getElementById('videoInput');
+
 let isLocked = false;
 let activityTimeout;
+let wakeLock = null; 
+let lastClickTime = 0; 
 
-// 1. SHOW/HIDE LOGIC (Unified for Lock & Controls)
+// --- 0. FILE UPLOAD LOGIC ---
+uploadBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    videoInput.click();
+});
+
+videoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const fileURL = URL.createObjectURL(file);
+        video.src = fileURL;
+        video.play();
+        updateUI(true);
+    }
+});
+
+// --- 1. WAKE LOCK ---
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try { wakeLock = await navigator.wakeLock.request('screen'); } 
+    catch (err) { console.log('Wake Lock Error:', err); }
+  }
+}
+function releaseWakeLock() {
+  if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
+}
+
+// --- 2. VISIBILITY & DOUBLE TAP ---
 function showControls() {
   container.classList.add('user-active');
   clearTimeout(activityTimeout);
-  
-  // 3 second baad gayab
   activityTimeout = setTimeout(() => {
-    // Agar video paused hai to gayab mat karo (optional preference)
-    // Lekin lock mode me hamesha gayab karna hai
     if (!video.paused || isLocked) {
       container.classList.remove('user-active');
     }
   }, 3000);
 }
 
-// Events to trigger visibility
-container.addEventListener('click', showControls);
-container.addEventListener('touchstart', showControls);
+function handleContainerClick(e) {
+    const currentTime = new Date().getTime();
+    const timeDiff = currentTime - lastClickTime;
+    if (timeDiff < 300 && timeDiff > 0) {
+        if (!isLocked) toggleFullscreen();
+    } else {
+        showControls();
+    }
+    lastClickTime = currentTime;
+}
+
+container.addEventListener('click', handleContainerClick);
+container.addEventListener('touchstart', (e) => showControls());
 container.addEventListener('mousemove', showControls);
 
-// 2. LOCK LOGIC
+// --- 3. LOCK LOGIC ---
 lockBtn.addEventListener('click', (e) => {
-  e.stopPropagation(); // Event bubble roko taki turant gayab na ho
+  e.stopPropagation();
   isLocked = !isLocked;
   
   if (isLocked) {
@@ -202,16 +250,11 @@ lockBtn.addEventListener('click', (e) => {
     lockBtn.classList.replace('bg-red-500', 'bg-black/40');
     lockBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>`;
   }
-  
-  // Lock click karte hi timer reset karo
   showControls();
 });
 
-// 3. FULLSCREEN LOGIC
-fsBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  toggleFullscreen();
-});
+// --- 4. FULLSCREEN & PLAYER LOGIC ---
+fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
 
 function toggleFullscreen() {
   if (document.fullscreenElement || container.classList.contains('fullscreen-mode')) {
@@ -227,50 +270,32 @@ function toggleFullscreen() {
   }
 }
 
-// 4. PLAYER CORE LOGIC
 window.addEventListener('load', () => {
-    // Show controls initially
     showControls();
-    
-    // Auto Play Logic
     video.muted = false;
     video.play().then(() => updateUI(true)).catch(() => {
-        video.muted = true;
-        video.play();
+        video.muted = true; 
+        video.play(); 
         updateUI(true);
     });
 });
 
-muteBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    video.muted = !video.muted;
-    updateUI(false);
-});
+muteBtn.addEventListener('click', (e) => { e.stopPropagation(); video.muted = !video.muted; updateUI(false); });
+playPauseBtn.addEventListener('click', (e) => { e.stopPropagation(); video.paused ? video.play() : video.pause(); });
 
-playPauseBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  video.paused ? video.play() : video.pause();
-});
+video.addEventListener('play', () => { updateUI(true); requestWakeLock(); });
+video.addEventListener('pause', () => { updateUI(true); releaseWakeLock(); });
 
-video.addEventListener('play', () => updateUI(true));
-video.addEventListener('pause', () => updateUI(true));
+// Note: 'ended' event doesn't fire on loop, which is good (keeps WakeLock active)
+video.addEventListener('ended', releaseWakeLock);
 
 function updateUI(updatePlayBtn) {
-    if(video.muted) {
-        volUpIcon.classList.add('hidden');
-        volMuteIcon.classList.remove('hidden');
-    } else {
-        volUpIcon.classList.remove('hidden');
-        volMuteIcon.classList.add('hidden');
-    }
+    if(video.muted) { volUpIcon.classList.add('hidden'); volMuteIcon.classList.remove('hidden'); }
+    else { volUpIcon.classList.remove('hidden'); volMuteIcon.classList.add('hidden'); }
+    
     if(updatePlayBtn) {
-        if(video.paused) {
-            playIcon.classList.remove('hidden');
-            pauseIcon.classList.add('hidden');
-        } else {
-            playIcon.classList.add('hidden');
-            pauseIcon.classList.remove('hidden');
-        }
+        if(video.paused) { playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden'); }
+        else { playIcon.classList.add('hidden'); pauseIcon.classList.remove('hidden'); }
     }
 }
 
@@ -285,13 +310,16 @@ video.addEventListener('timeupdate', () => {
 });
 progress.addEventListener('input', (e) => {
   e.stopPropagation();
-  video.currentTime = (progress.value / 100) * video.duration; 
+  video.currentTime = (progress.value / 100) * video.duration;
 });
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock();
+});
 </script>
 </body>
 </html>
