@@ -1,4 +1,8 @@
+
+<!-- Safcha ultimate player  -->
+
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -281,7 +285,7 @@ video.addEventListener('timeupdate', () => {
 });
 progress.addEventListener('input', (e) => {
   e.stopPropagation();
-  video.currentTime = (progress.value / 100) * video.duration;
+  video.currentTime = (progress.value / 100) * video.duration; 
 });
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
