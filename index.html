@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div class="w-full max-w-6xl">
+        <!-- Card Container -->
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <!-- Video Container -->
+            <div class="relative bg-black">
+                <video 
+                    id="videoPlayer"
+                    class="w-full pointer-events-none"
+                    width="1024"
+                    height="768"
+                    controls
+                    autoplay
+                    muted
+                    loop
+                    preload="auto"
+                    poster="https://images.unsplash.com/photo-1574267432644-f610c0b5c135?w=1024&h=768&fit=crop"
+                >
+                    <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                
+                <!-- Lock/Unlock Button -->
+                <button id="lockBtn" class="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-3 py-3 rounded-full font-semibold hover:bg-opacity-70 transition-all z-10 backdrop-blur-sm text-xl opacity-0">
+                    🔒
+                </button>
+                
+                <!-- Invisible click detector -->
+                <div id="videoClickDetector" class="absolute inset-0 z-5"></div>
+            </div>
+
+        </div>
+        
+        <!-- Footer Credit -->
+       
+    </div>
+
+    <!-- Unmute Overlay -->
+    <div id="unmuteOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="text-center">
+            <button id="unmuteBtn" class="bg-white text-purple-600 px-12 py-6 rounded-2xl font-bold text-2xl shadow-2xl hover:scale-110 transform transition-all duration-300 hover:bg-purple-50">
+                🔊 Click to Play with Sound
+            </button>
+            <p class="text-white mt-4 text-sm">Tap anywhere to start</p>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoPlayer');
+        const overlay = document.getElementById('unmuteOverlay');
+        const unmuteBtn = document.getElementById('unmuteBtn');
+        const lockBtn = document.getElementById('lockBtn');
+        const videoClickDetector = document.getElementById('videoClickDetector');
+        let isLocked = true;
+        let hideTimeout;
+        
+        // Force high quality playback
+        video.addEventListener('loadedmetadata', () => {
+            // Try to set highest quality
+            if (video.videoTracks && video.videoTracks.length > 0) {
+                video.videoTracks[0].selected = true;
+            }
+            // Set playback quality hint
+            video.playbackQuality = 'high';
+        });
+        
+        // Unmute and play with sound on first interaction
+        function enableSound() {
+            video.muted = false;
+            video.play();
+            overlay.style.display = 'none';
+        }
+        
+        // Click on button
+        unmuteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            enableSound();
+        });
+        
+        // Or click anywhere on overlay
+        overlay.addEventListener('click', (e) => {
+            e.stopPropagation();
+            enableSound();
+        });
+        
+        // Show lock icon on video click/hover (only when locked)
+        function showLockIcon() {
+            if (isLocked) {
+                lockBtn.classList.remove('opacity-0');
+                lockBtn.classList.add('opacity-100');
+                
+                // Clear existing timeout
+                clearTimeout(hideTimeout);
+                
+                // Hide after 2 seconds
+                hideTimeout = setTimeout(() => {
+                    lockBtn.classList.remove('opacity-100');
+                    lockBtn.classList.add('opacity-0');
+                }, 2000);
+            }
+        }
+        
+        // Video area click detector
+        videoClickDetector.addEventListener('click', showLockIcon);
+        
+        // Also show on hover
+        videoClickDetector.addEventListener('mouseenter', showLockIcon);
+        
+        // Lock/Unlock toggle
+        lockBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            isLocked = !isLocked;
+            if (isLocked) {
+                video.classList.add('pointer-events-none');
+                videoClickDetector.style.display = 'block';
+                lockBtn.innerHTML = '🔒';
+                lockBtn.classList.remove('bg-green-500');
+                lockBtn.classList.add('bg-black');
+                
+                // Keep visible for 3 seconds when locked
+                clearTimeout(hideTimeout);
+                lockBtn.classList.add('opacity-100');
+                lockBtn.classList.remove('opacity-0');
+                
+                // Hide after 3 seconds
+                hideTimeout = setTimeout(() => {
+                    lockBtn.classList.remove('opacity-100');
+                    lockBtn.classList.add('opacity-0');
+                }, 3000);
+            } else {
+                video.classList.remove('pointer-events-none');
+                videoClickDetector.style.display = 'none';
+                lockBtn.innerHTML = '🔓';
+                lockBtn.classList.remove('bg-black');
+                lockBtn.classList.add('bg-green-500');
+                
+                // Stay visible when unlocked
+                clearTimeout(hideTimeout);
+                lockBtn.classList.add('opacity-100');
+                lockBtn.classList.remove('opacity-0');
+            }
+        });
+        
+        // Handle fullscreen with iPad size constraint
+        video.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                video.style.maxWidth = '1024px';
+                video.style.maxHeight = '768px';
+                video.style.margin = 'auto';
+                video.style.width = '1024px';
+                video.style.height = '768px';
+            } else {
+                video.style.maxWidth = '';
+                video.style.maxHeight = '';
+                video.style.margin = '';
+                video.style.width = '';
+                video.style.height = '';
+            }
+        });
+        
+        // Also handle webkit fullscreen (Safari)
+        video.addEventListener('webkitfullscreenchange', () => {
+            if (document.webkitFullscreenElement) {
+                video.style.maxWidth = '1024px';
+                video.style.maxHeight = '768px';
+                video.style.margin = 'auto';
+                video.style.width = '1024px';
+                video.style.height = '768px';
+            } else {
+                video.style.maxWidth = '';
+                video.style.maxHeight = '';
+                video.style.margin = '';
+                video.style.width = '';
+                video.style.height = '';
+            }
+        });
+    </script>
+</body>
+</html>
