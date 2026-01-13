@@ -116,14 +116,15 @@
   <div id="videoContainer">
     <video 
       id="videoPlayer"
+      autoplay
+      muted
+      loop
       playsinline
       webkit-playsinline
-      loop
       poster="https://images.unsplash.com/photo-1574267432644-f610c0b5c135?w=1024"
     >
       <!-- <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4"> -->
-      <source src="https://files.catbox.moe/i2k2it.mp4" type="video/mp4">
-
+      <source src="https://res.cloudinary.com/dpgaxuazo/video/upload/v1768301623/101666-video-2160_nujnar.mp4" type="video/mp4">
     </video>
 
     <input type="file" id="videoInput" accept="video/*" class="hidden">
@@ -150,8 +151,8 @@
       <span id="duration" class="text-white text-[10px] font-mono min-w-[30px] text-center">0:00</span>
 
       <button id="muteBtn" class="text-white hover:text-green-400 p-1">
-        <svg id="volUpIcon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-        <svg id="volMuteIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+        <svg id="volUpIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        <svg id="volMuteIcon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
       </button>
 
       <button id="fsBtn" class="text-white hover:text-green-400 p-1 border-l border-white/20 pl-2 ml-1">
@@ -175,8 +176,6 @@ const durationDisplay = document.getElementById('duration');
 const muteBtn = document.getElementById('muteBtn');
 const volUpIcon = document.getElementById('volUpIcon');
 const volMuteIcon = document.getElementById('volMuteIcon');
-
-// New Upload Elements
 const uploadBtn = document.getElementById('uploadBtn');
 const videoInput = document.getElementById('videoInput');
 
@@ -196,6 +195,7 @@ videoInput.addEventListener('change', (e) => {
     if (file) {
         const fileURL = URL.createObjectURL(file);
         video.src = fileURL;
+        video.muted = false; // Local files ko unmuted chala sakte hain user action se
         video.play();
         updateUI(true);
     }
@@ -273,13 +273,21 @@ function toggleFullscreen() {
 }
 
 window.addEventListener('load', () => {
+    // Force Autoplay Logic
+    var playPromise = video.play();
+    if (playPromise !== undefined) {
+        playPromise.then(_ => {
+            // Automatic playback started!
+            updateUI(true);
+        })
+        .catch(error => {
+            // Auto-play was prevented
+            // (Is case me hum kuch ni kr skte, user ko tap krna hoga, 
+            // but 'muted' tag se ye error 99% aayega hi nahi)
+            console.log("Autoplay prevent, waiting for user.");
+        });
+    }
     showControls();
-    video.muted = false;
-    video.play().then(() => updateUI(true)).catch(() => {
-        video.muted = true; 
-        video.play(); 
-        updateUI(true);
-    });
 });
 
 muteBtn.addEventListener('click', (e) => { e.stopPropagation(); video.muted = !video.muted; updateUI(false); });
@@ -287,8 +295,6 @@ playPauseBtn.addEventListener('click', (e) => { e.stopPropagation(); video.pause
 
 video.addEventListener('play', () => { updateUI(true); requestWakeLock(); });
 video.addEventListener('pause', () => { updateUI(true); releaseWakeLock(); });
-
-// Note: 'ended' event doesn't fire on loop, which is good (keeps WakeLock active)
 video.addEventListener('ended', releaseWakeLock);
 
 function updateUI(updatePlayBtn) {
